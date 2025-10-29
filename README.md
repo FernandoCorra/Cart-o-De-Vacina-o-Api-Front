@@ -32,7 +32,6 @@ Arquitetura: **Front (SPA)** + **API REST** + **Banco de dados**.
 - [Decisões arquiteturais (ADR)](#decisões-arquiteturais-adr)
 - [Guia de Git e commits](#guia-de-git-e-commits)
 - [Changelog](#changelog)
-- [Licença](#licença)
 
 ---
 
