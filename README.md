@@ -2,7 +2,7 @@
 
 Este repositório contém:
 - **Backend** em FastAPI (`main.py`) com SQLite (`vaccines.db`).
-- **Frontend** (pasta `vacina-frontend`, conforme imagem) usando Vite/React.
+- **Frontend** (pasta `vacina-frontend`) usando Vite/React.
 
 A API implementa:
 - **Vacinas** (`/vaccines`)
