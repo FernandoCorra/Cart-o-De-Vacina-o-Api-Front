@@ -1,4 +1,27 @@
 /* Reset suave */
+html, body, #root, .page {
+  background-color: #fff !important;
+  color: #111;
+  min-height: 100vh; /* evita “faixa” do fundo do body */
+}
+
+/* Se algum tema dark estiver ativo em outro arquivo, neutraliza: */
+@media (prefers-color-scheme: dark) {
+  html, body, #root, .page {
+    background-color: #fff !important;
+    color: #111 !important;
+  }
+}
+
+/* Garantir que containers grandes não pintem o fundo escuro */
+.table-wrapper,
+.tabs,
+.footer-icons {
+  background: transparent !important;
+}
+
+
+
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
 body {
