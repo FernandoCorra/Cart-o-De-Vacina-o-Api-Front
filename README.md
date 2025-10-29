@@ -65,8 +65,6 @@ O **acesso** é protegido por **API Key opcional** via header `X-API-Key` quando
     └── vite.config.ts
 ```
 
-> Se a pasta `tests/` ainda não existir, ela é criada neste pacote com exemplos funcionais.
-
 ---
 
 ## Setup backend
