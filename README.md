@@ -1,489 +1,251 @@
-# Cartão de Vacinação – API + Front
+# Cartão de Vacinação – FastAPI (backend) + Front (Vite/React)
 
-Sistema para **consulta do cartão de vacinação** e **cadastro de vacinas/vacinações**.  
-Arquitetura: **Front (SPA)** + **API REST** + **Banco de dados**.
+Este repositório contém:
+- **Backend** em FastAPI (`main.py`) com SQLite (`vaccines.db`).
+- **Frontend** (pasta `vacina-frontend`, conforme imagem) usando Vite/React.
 
-> **Decisão arquitetural:** consulta e cadastro coexistem no **mesmo front** (rotas distintas), consumindo a **mesma API** com controle de acesso por perfil (RBAC).
+A API implementa:
+- **Vacinas** (`/vaccines`)
+- **Pessoas** (`/people`)
+- **Registros de vacinação** (`/vaccinations`)
+- **Cartão** por pessoa, em **lista** ou **matriz** (`/people/{pid}/card?format=list|matrix`)
+
+O **acesso** é protegido por **API Key opcional** via header `X-API-Key` quando a variável de ambiente `API_KEY` estiver definida.
 
 ---
 
 ## Sumário
 
-- [Visão geral](#visão-geral)
-- [Arquitetura](#arquitetura)
-- [Stack técnica](#stack-técnica)
-- [Estrutura do repositório](#estrutura-do-repositório)
-- [Modelagem de dados](#modelagem-de-dados)
-- [Setup local](#setup-local)
-- [Executando](#executando)
+- [Stack](#stack)
+- [Estrutura](#estrutura)
+- [Setup backend](#setup-backend)
+- [Executando o backend](#executando-o-backend)
 - [Variáveis de ambiente](#variáveis-de-ambiente)
-- [API – Referência](#api--referência)
-  - [Autenticação](#autenticação)
-  - [Pessoas](#pessoas)
+- [Referência de API](#referência-de-api)
+  - [Saúde](#saúde)
   - [Vacinas](#vacinas)
+  - [Pessoas](#pessoas)
   - [Vacinações](#vacinações)
-  - [Cartão de vacinação](#cartão-de-vacinação)
+  - [Cartão](#cartão)
   - [Erros](#erros)
-- [Validações de negócio](#validações-de-negócio)
-- [Segurança](#segurança)
-- [Observabilidade](#observabilidade)
+- [Regras de negócio](#regras-de-negócio)
+- [CORS](#cors)
 - [Testes](#testes)
-- [CI/CD (opcional)](#cicd-opcional)
-- [Decisões arquiteturais (ADR)](#decisões-arquiteturais-adr)
-- [Guia de Git e commits](#guia-de-git-e-commits)
-- [Changelog](#changelog)
+- [Frontend](#frontend)
+- [Notas de projeto](#notas-de-projeto)
 
 ---
 
-## Visão geral
+## Stack
 
-Este projeto implementa um sistema de **Cartão de Vacinação** com:
-- **Consulta** do histórico de vacinações de uma pessoa;
-- **Cadastro** de vacinas e registro de **vacinações** com validações de negócio (intervalo mínimo, número de doses, unicidade de dose por pessoa/vacina).
-
-O **front-end** (SPA) concentra **consulta** e **cadastro** em rotas distintas e consome a **mesma API REST**. O **back-end** aplica autenticação via **JWT**, autorização por **RBAC**, validação de payloads e logging estruturado.
-
----
-
-## Arquitetura
-
-```
-[ Front SPA ] ─── HTTP/JSON ───> [ API REST (v1) ] ─── SQL ───> [ Banco de Dados ]
-     |                                |
-  Rotas /consulta e /cadastro         └── JWT/RBAC, validação, logs, métricas
-```
-
-- **Front (SPA)**: telas separadas para consulta (`/consulta`) e cadastro (`/cadastro`).
-- **API REST (v1)**: endpoints idempotentes, OpenAPI automático, padronização de erros.
-- **Banco de dados**: persistência de pessoas, vacinas e vacinações com integridade referencial.
+- **Python** 3.10+ (testado com 3.11)
+- **FastAPI** + **Uvicorn**
+- **SQLAlchemy** + **SQLite**
+- **Pydantic**
+- **Pytest** (testes)
 
 ---
 
-## Stack técnica
-
-- **Back-end**: Python + **FastAPI** (pode ser adaptado para Flask); OpenAPI/Swagger nativo
-- **DB**: SQLite (dev) / PostgreSQL (prod)
-- **Auth**: JWT (Access/Refresh) + **RBAC**
-- **Front**: React + Vite (ou framework equivalente)
-- **Migrações**: Alembic (Postgres) / SQL simples (SQLite)
-- **Testes**: Pytest + HTTPX
-
-> Se optar por Flask, os conceitos e rotas permanecem; apenas mudam os detalhes de execução e dependências.
-
----
-
-## Estrutura do repositório
+## Estrutura
 
 ```
 .
-├── api/
-│   ├── app.py
-│   ├── routers/
-│   │   ├── auth.py
-│   │   ├── pessoas.py
-│   │   ├── vacinas.py
-│   │   └── vacinacoes.py
-│   ├── models.py
-│   ├── schemas.py
-│   ├── services/
-│   │   └── validacao_doses.py
-│   ├── db.py
-│   └── settings.py
-├── frontend/
-│   ├── src/
-│   │   ├── pages/Consulta.tsx
-│   │   ├── pages/Cadastro.tsx
-│   │   └── services/api.ts
-│   └── vite.config.ts
-├── docs/
-│   ├── ADR-0001-spa-unica.md
-│   └── postman_collection.json (exemplo)
-├── scripts/
-│   ├── dev.sh
-│   └── seed_db.py
+├── main.py                  # FastAPI + SQLAlchemy
+├── vaccines.db              # (criado automaticamente ao rodar)
 ├── tests/
-│   ├── test_auth.py
-│   ├── test_pessoas.py
-│   ├── test_vacinas.py
-│   └── test_vacinacoes.py
-├── .env.example
-├── .gitignore
-└── README.md
+│   ├── conftest.py          # overrides e DB de teste
+│   ├── test_people.py       # testes: criar/listar pessoa
+│   └── test_vaccines.py     # testes: criar/listar vacina
+└── vacina-frontend/         # Vite/React (conforme imagem)
+    ├── node_modules/ …
+    ├── public/
+    ├── src/
+    ├── index.html
+    ├── package.json
+    └── vite.config.ts
 ```
+
+> Se a pasta `tests/` ainda não existir, ela é criada neste pacote com exemplos funcionais.
 
 ---
 
-## Modelagem de dados
+## Setup backend
 
-**Entidades**
+Crie um ambiente virtual e instale as dependências:
 
-- `pessoas(id TEXT PK, nome TEXT NOT NULL, created_at DATETIME)`
-- `vacinas(id TEXT PK, nome TEXT NOT NULL, doses_totais INT, intervalo_min_dias INT, created_at DATETIME)`
-- `vacinacoes(id INTEGER PK AUTOINCREMENT, pessoa_id TEXT FK, vacina_id TEXT FK, dose INT, data_aplicacao DATE, created_at DATETIME)`
-
-**Regras**
-- `vacinacoes.pessoa_id` → `pessoas.id` (**ON DELETE CASCADE**)
-- `vacinacoes.vacina_id` → `vacinas.id`
-- Índices em `vacinacoes(pessoa_id)` e `vacinacoes(vacina_id)`
-
-**ERD**
-
-```
-pessoas (1) ───< (n) vacinacoes (n) >─── (1) vacinas
-```
-
----
-
-## Setup local
-
-1) **Clonar o repositório**
 ```bash
-git clone https://github.com/seu-usuario/cartao-vacinacao.git
-cd cartao-vacinacao
-```
-
-2) **Criar venv e instalar dependências (API)**
-```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -U pip
-pip install fastapi uvicorn pydantic[dotenv] python-multipart python-jose[cryptography] passlib[bcrypt] sqlalchemy aiosqlite httpx pytest
+pip install fastapi uvicorn sqlalchemy pydantic pytest
 ```
 
-3) **Configurar variáveis**
-```bash
-cp .env.example .env
-# Edite JWT_SECRET, DATABASE_URL, CORS_ORIGINS etc.
-```
-
-4) **Inicializar DB (SQLite)**
-```bash
-python scripts/seed_db.py
-```
-
-5) **Instalar front**
-```bash
-cd frontend
-npm i
-cd ..
-```
+> O banco **SQLite** é criado automaticamente como `vaccines.db` na raiz quando a API sobe.
 
 ---
 
-## Executando
+## Executando o backend
 
-**API**
 ```bash
-uvicorn api.app:app --reload --port 8000
-# OpenAPI/Swagger: http://localhost:8000/docs
+uvicorn main:app --reload --port 8000
+# Documentação: http://localhost:8000/docs
 ```
 
-**Front**
+Se você definir `API_KEY`, as chamadas devem enviar o header `X-API-Key` com o mesmo valor.
+
+Exemplo cURL:
+
 ```bash
-cd frontend
-npm run dev
-# http://localhost:5173
+curl -H "X-API-Key: segr3do" http://localhost:8000/health
 ```
 
 ---
 
 ## Variáveis de ambiente
 
+- `API_KEY` – se definida, obriga enviar `X-API-Key` em todas as rotas (exceto `/health`).
+
+No Linux/Mac:
+
+```bash
+export API_KEY=segr3do
 ```
-APP_ENV=dev
-DATABASE_URL=sqlite+aiosqlite:///./app.db
-JWT_SECRET=troque-por-um-segredo-longo
-ACCESS_TOKEN_EXPIRES_MIN=15
-REFRESH_TOKEN_EXPIRES_MIN=43200
-CORS_ORIGINS=http://localhost:5173
+
+No Windows (PowerShell):
+
+```powershell
+$env:API_KEY="segr3do"
 ```
 
-> Para Postgres, use `DATABASE_URL=postgresql+psycopg://user:pass@host:5432/dbname` e configure Alembic.
-
 ---
 
-## API – Referência
+## Referência de API
 
-Base URL: `/api/v1`  
-Autenticação: `Authorization: Bearer <access_token>`
+### Saúde
 
-### Autenticação
-
-- **POST** `/auth/login`  
-  **Body**
-  ```json
-  { "username": "admin", "password": "..." }
-  ```
-  **200**
-  ```json
-  { "access_token": "...", "refresh_token": "...", "token_type": "bearer" }
-  ```
-
-- **POST** `/auth/refresh`  
-  **Body**
-  ```json
-  { "refresh_token": "..." }
-  ```
-  **200**
-  ```json
-  { "access_token": "...", "token_type": "bearer" }
-  ```
-
----
-
-### Pessoas
-
-- **POST** `/pessoas` – criar pessoa
-  ```json
-  { "id": "123", "nome": "Ana Souza" }
-  ```
-  **201**
-  ```json
-  { "id": "123", "nome": "Ana Souza", "created_at": "2025-10-29T10:00:00Z" }
-  ```
-
-- **DELETE** `/pessoas/{id}` – remover pessoa (e seu cartão de vacinação por cascata)  
-  **204** (sem corpo)
-
----
+- `GET /health` → `{ "status": "ok" }`
 
 ### Vacinas
 
-- **POST** `/vacinas` – criar vacina
+- **POST** `/vaccines` (criar)
   ```json
   {
-    "id": "covid_bnt",
-    "nome": "COVID-19 (BNT)",
-    "doses_totais": 2,
-    "intervalo_min_dias": 21
+    "name": "Hepatite B",
+    "code": "hepb",
+    "allowed_doses": ["D1", "D2", "D3", "R1", "R2"]
   }
   ```
-  **201**
+  - `code` é **único** (slug).  
+  - `allowed_doses` é opcional (por padrão: `["D1","D2","D3","R1","R2"]`).
+
+- **GET** `/vaccines` (listar)
+
+- **GET** `/vaccines/{id}` (buscar por id)
+
+- **DELETE** `/vaccines/{id}` (apagar)
+
+### Pessoas
+
+- **POST** `/people` (criar)
   ```json
   {
-    "id": "covid_bnt",
-    "nome": "COVID-19 (BNT)",
-    "doses_totais": 2,
-    "intervalo_min_dias": 21,
-    "created_at": "2025-10-29T10:00:00Z"
+    "name": "Ana Souza",
+    "document": "12345678900"
   }
   ```
+  - `document` é **único**.
 
-- **GET** `/vacinas?search=covid` – listar/filtrar  
-  **200**: `[{...}, ...]`
+- **GET** `/people` (listar)
 
----
+- **GET** `/people/{id}` (buscar por id)
+
+- **DELETE** `/people/{id}` (apagar; deleção em cascata remove vacinações)
 
 ### Vacinações
 
-- **POST** `/vacinacoes` – registrar vacinação
+- **POST** `/vaccinations` (criar)
   ```json
   {
-    "pessoa_id": "123",
-    "vacina_id": "covid_bnt",
-    "dose": 1,
-    "data_aplicacao": "2025-10-26"
+    "person_id": "<uuid-pessoa>",
+    "vaccine_id": "<uuid-vacina>",
+    "dose": "D1",
+    "applied_at": "2025-10-29",
+    "lot": "L123",
+    "location": "UBS Central"
   }
   ```
-  **201**
-  ```json
-  {
-    "id": 10,
-    "pessoa_id": "123",
-    "vacina_id": "covid_bnt",
-    "dose": 1,
-    "data_aplicacao": "2025-10-26",
-    "created_at": "2025-10-29T10:00:00Z"
-  }
-  ```
+  - Valida dose permitida para a vacina.
+  - Por padrão, **exige ordem** (D1 antes de D2, etc.). Para desativar: `?enforce_sequence=false`.
 
-- **DELETE** `/vacinacoes/{id}` – excluir registro de vacinação  
-  **204** (sem corpo)
+- **GET** `/vaccinations/{id}` (buscar por id)
 
----
+- **DELETE** `/vaccinations/{id}` (apagar)
 
-### Cartão de vacinação
+### Cartão
 
-- **GET** `/pessoas/{id}/cartao` – consultar cartão
-  **200**
-  ```json
-  {
-    "pessoa": { "id": "123", "nome": "Ana Souza" },
-    "registros": [
-      {
-        "vacina": {
-          "id": "covid_bnt",
-          "nome": "COVID-19 (BNT)",
-          "doses_totais": 2,
-          "intervalo_min_dias": 21
-        },
-        "dose": 1,
-        "data_aplicacao": "2025-10-26"
-      }
-    ]
-  }
-  ```
-
----
+- **GET** `/people/{pid}/card?format=list|matrix`  
+  - `format=list`: agrupado por vacina, com entradas.  
+  - `format=matrix`: matriz Dose × Vacina (célula = registro).
 
 ### Erros
 
-- **400 Bad Request** – payload/regra inválidos  
-- **401 Unauthorized** – token ausente/expirado  
-- **403 Forbidden** – sem permissão (RBAC)  
-- **404 Not Found** – recurso inexistente  
-- **409 Conflict** – violação de regra de negócio (ex.: dose repetida)  
-- **422 Unprocessable Entity** – schema inválido  
-- **429 Too Many Requests** – rate limit  
-- **500 Internal Server Error** – erro não mapeado  
-
-**Formato padrão**
-```json
-{
-  "error": "business_rule_violation",
-  "message": "Dose 2 inválida: intervalo mínimo de 21 dias não cumprido",
-  "details": { "dias_decorridos": 14, "minimo": 21 }
-}
-```
+- `400/409/422` – validações e conflitos (ex.: `code`/`document` duplicados, dose fora da ordem).  
+- `401` – API Key ausente/errada quando `API_KEY` está setada.  
+- `404` – não encontrado.
 
 ---
 
-## Validações de negócio
+## Regras de negócio
 
-1. **Intervalo mínimo entre doses**: respeitar `intervalo_min_dias` quando definido.  
-2. **Número máximo de doses**: não permitir `dose > doses_totais` quando definido.  
-3. **Unicidade de dose**: uma `(pessoa_id, vacina_id, dose)` não pode se repetir.  
-4. **Consistência de datas**: `data_aplicacao` não pode ser futura (configurável).
-
----
-
-## Segurança
-
-- **JWT** com expiração curta (access) e refresh token;
-- **RBAC** (ex.: `admin`, `operador`, `leitor`);
-- **CORS** restrito ao domínio do front;
-- **Rate limiting** (ex.: 100 req/15min por IP);
-- **Auditoria**: log de `user_id`, rota, status e latência.
+- **Dose permitida**: a dose enviada deve existir em `allowed_doses` da vacina.
+- **Ordem de doses**: por padrão, requer D1→D2→D3→R1→R2. Param `enforce_sequence=false` desliga.
+- **Unicidade por pessoa/vacina/dose**: um trio `(person_id, vaccine_id, dose)` é único.
 
 ---
 
-## Observabilidade
+## CORS
 
-- **Logs estruturados** (JSON): nível, timestamp, rota, correlação;
-- **Métricas**: contadores por rota/status, latências p95/p99;
-- **Tracing** (opcional): OpenTelemetry.
+Liberado para todos (`allow_origins=["*"]`) no `main.py`. Ajuste em produção.
 
 ---
 
 ## Testes
 
-- **Unitários**: validações de regras (intervalo, doses, unicidade);
-- **Integração**: rotas (HTTP 200/4xx), autenticação, RBAC;
-- **Contrato**: schemas com pydantic.
+Fornecemos testes **funcionais** para **adicionar vacina** e **adicionar pessoa**. Eles criam um banco **temporário** e sobrescrevem as dependências de DB e API Key.
 
-Execução:
+### Instalação (se necessário)
+
+```bash
+pip install pytest
+```
+
+### Rodando
+
 ```bash
 pytest -q
 ```
 
----
-
-## CI/CD (opcional)
-
-- **CI**: lint + testes a cada PR (GitHub Actions);
-- **CD**: deploy automatizado em `main` (tag/release);
-- **Versionamento**: prefixo `/api/v1`; breaking changes ⇒ `/v2`.
+> Os testes usam `TestClient` do FastAPI e não exigem subir o servidor.
 
 ---
 
-## Decisões arquiteturais (ADR)
+## Frontend
 
-**ADR-0001 – SPA única (consulta + cadastro)**  
-- **Contexto**: duas funcionalidades acessadas por perfis diferentes.  
-- **Decisão**: manter **um único front** com rotas separadas, consumindo a **mesma API** com RBAC.  
-- **Alternativas**: 2 SPAs separadas (maior custo de infra e duplicação de componentes).  
-- **Consequências**: UX unificada; menor overhead de deploy; CORS simplificado; requer atenção a RBAC/roteamento protegido.
+A pasta `vacina-frontend/` (Vite/React) pode consumir esta API. Para rodar:
 
-> Salvar como `docs/ADR-0001-spa-unica.md`.
+```bash
+cd vacina-frontend
+npm install
+npm run dev
+# http://localhost:5173
+```
+
+No cliente, ao chamar a API com `fetch`/Axios, inclua `X-API-Key` se `API_KEY` estiver configurada no backend.
 
 ---
 
-## Guia de Git e commits
+## Notas de projeto
 
-### Branching
-
-- `main`: produção  
-- `dev`: integração contínua  
-- `feature/<nome>`: novas features  
-- `fix/<nome>`: correções  
-- `chore/<nome>`: manutenção/infra
-
-Exemplo:
-```bash
-git checkout -b feature/cadastro-vacinacao
-# ... commits ...
-git push origin feature/cadastro-vacinacao
-```
-
-### Convenção de commits (Conventional Commits)
-
-Formato:
-```
-<type>(escopo opcional): descrição no imperativo
-
-[corpo opcional]
-[footer opcional]
-```
-
-Tipos comuns: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`, `ci`, `perf`, `style`
-
-Exemplos:
-```
-feat(api): criar endpoint POST /vacinacoes com validação de dose
-fix(db): corrigir cascade delete de pessoa -> vacinações
-docs(readme): adicionar exemplos de curl e fluxo de autenticação
-```
-
-### Pull Requests
-
-- Descrever **contexto**, **antes/depois** e **prints** (quando front);
-- Marcar revisores e garantir que testes passam;
-- **Squash merge** (opcional) para histórico limpo;
-- Taggear releases (`v1.0.0`, `v1.1.0`) – **SemVer**.
-
----
-
-## Changelog
-
-Mantenha um `CHANGELOG.md` com entradas por versão (SemVer). Exemplo:
-
-- **[1.0.0] – 2025-10-29**
-  - feat: CRUD de pessoas, vacinas e vacinações
-  - feat: consulta do cartão de vacinação
-  - feat: autenticação JWT + RBAC
-  - docs: README inicial
-
-
-
-## Exemplos de chamadas (cURL)
-
-**Login**
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"senha"}'
-```
-
-**Criar pessoa**
-```bash
-curl -X POST http://localhost:8000/api/v1/pessoas \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"id":"123","nome":"Ana Souza"}'
-```
-
-**Registrar vacinação**
-```bash
-curl -X POST http://localhost:8000/api/v1/vacinacoes \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"pessoa_id":"123","vacina_id":"covid_bnt","dose":1,"data_aplicacao":"2025-10-26"}'
-```
+- **SQLite + PRAGMA foreign_keys**: habilitado para suportar `ON DELETE CASCADE`.  
+- **Schema**: `Vaccine`, `Person`, `Vaccination` com constraints e `UniqueConstraint(person_id, vaccine_id, dose)`.  
+- **Card**: duas visualizações (lista/matriz) para atender diferentes UIs.
